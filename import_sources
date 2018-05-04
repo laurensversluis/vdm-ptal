@@ -1,0 +1,5 @@
+-- prepare network data used in analysis and calculations
+DROP SCHEMA IF EXISTS sources CASCADE;
+CREATE SCHEMA sources;
+ALTER SCHEMA sources OWNER TO postgres;
+

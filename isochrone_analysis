@@ -1,0 +1,140 @@
+-- isochrone analysis from public transport stops along the street network
+DROP SCHEMA IF EXISTS isochrone_analysis CASCADE;
+CREATE SCHEMA isochrone_analysis;
+ALTER SCHEMA isochrone_analysis OWNER TO postgres;
+
+-- extract network for pedestrians and cyclists
+DROP TABLE isochrone_analysis.wegen CASCADE;
+CREATE TABLE isochrone_analysis.wegen AS
+	SELECT *
+	FROM networks.t10_wegen
+	WHERE fiets = TRUE OR fiets IS NULL
+	OR voetganger = TRUE OR voetganger IS NULL
+;
+
+-- prepare topology
+ALTER TABLE isochrone_analysis.wegen DROP COLUMN source, DROP COLUMN target;
+ALTER TABLE isochrone_analysis.wegen ADD COLUMN source integer, ADD COLUMN target integer;
+
+-- build the network topology (takes about an hour)
+SELECT pgr_createTopology('isochrone_analysis.wegen', 0.01, 'geom', 'sid');
+
+-- indexing the wegen link and vertex tables
+CREATE INDEX wegen_geom_idx ON isochrone_analysis.wegen USING GIST (geom);
+CREATE INDEX wegen_vertices_geom_idx ON isochrone_analysis.wegen_vertices_pgr USING GIST (the_geom);
+
+-- link stations to 2 nearest (non connected) streets
+DROP TABLE IF EXISTS isochrone_analysis.origin_stops CASCADE;
+CREATE TABLE isochrone_analysis.origin_stops (
+	sid serial NOT NULL PRIMARY KEY,
+	geom geometry(Point,28992),
+	stop_id character varying,
+	stop_name character varying,
+	stop_mode character varying,
+	weg_sid integer,
+	weg_dist double precision,
+	weg_length double precision,
+	weg_point_location double precision,
+	source_id integer,
+	target_id integer
+);
+-- add closest weg
+INSERT INTO isochrone_analysis.origin_stops (stop_id, geom, stop_name, stop_mode,
+	weg_sid, weg_length, weg_dist, weg_point_location, source_id, target_id)
+	SELECT DISTINCT ON(stops.stop_id) stops.stop_id,
+		ST_ClosestPoint(weg.geom, stops.geom), stops.stop_name,
+		CASE
+			WHEN trein = TRUE THEN 'trein'
+			WHEN metro = TRUE THEN 'metro'
+			WHEN tram = TRUE THEN 'tram'
+			WHEN bus = TRUE THEN 'bus'
+		END,
+		weg.sid, weg.length,
+		ST_Distance(stops.geom, weg.geom) dist,
+		ST_LineLocatePoint(weg.geom, ST_GeometryN(stops.geom, 1)),
+		weg.source, weg.target
+	FROM (
+		SELECT * FROM networks.ov_stops
+		WHERE parent_station IS NULL
+	) stops, isochrone_analysis.wegen weg
+	WHERE ST_DWithin(stops.geom, weg.geom, 200)
+	ORDER BY stops.stop_id, dist ASC
+;
+
+CREATE INDEX origins_stops_idx ON isochrone_analysis.origin_stops (stop_id);
+CREATE INDEX origins_weg_idx ON isochrone_analysis.origin_stops (weg_sid);
+CREATE INDEX origins_source_idx ON isochrone_analysis.origin_stops (source_id);
+CREATE INDEX origins_target_idx ON isochrone_analysis.origin_stops (target_id);
+
+----- CALCULATE street network distances to every stop
+-- this is neded for walk, cycling, ov isochrones and for PTAL
+-- stations - 800m walking, 3000m cycling
+-- metro - 800m walking
+-- bus and tram - 400m walking
+DROP TABLE IF EXISTS isochrone_analysis.isochrone_nodes CASCADE;
+CREATE TABLE isochrone_analysis.isochrone_nodes(
+	sid bigserial NOT NULL PRIMARY KEY,
+	origin_id integer,
+	travel_mode varchar,
+	node_id integer,
+	node_distance double precision
+);
+-- cycling for 3000m
+DROP TABLE IF EXISTS wegen_fiets CASCADE;
+CREATE TEMP TABLE wegen_fiets AS (
+	SELECT * FROM isochrone_analysis.wegen WHERE fiets IS NULL OR fiets = True
+);
+DELETE FROM isochrone_analysis.isochrone_nodes WHERE travel_mode = 'fiets';
+INSERT INTO isochrone_analysis.isochrone_nodes (origin_id, travel_mode, node_id, node_distance)
+	SELECT origin.id, 'fiets', (origin.catchment).id1, (origin.catchment).cost
+		FROM (
+			SELECT a.id, pgr_drivingDistance(
+				'SELECT sid AS id, source, target, length AS cost FROM wegen_fiets',
+				a.id::integer, 2900.0, false, false
+			) catchment
+			FROM (
+				SELECT * FROM isochrone_analysis.wegen_vertices_pgr v
+				WHERE EXISTS (SELECT 1 FROM wegen_fiets WHERE source=v.id OR target=v.id)
+				AND EXISTS (SELECT 1 FROM isochrone_analysis.origin_stops
+				WHERE stop_mode = 'trein' AND (source_id=v.id OR target_id=v.id))
+			) a
+		) origin
+;
+
+-- walking for 800m
+DROP TABLE IF EXISTS wegen_walk CASCADE;
+CREATE TEMP TABLE wegen_walk AS (
+	SELECT * FROM isochrone_analysis.wegen WHERE voetganger IS NULL OR voetganger = True
+);
+DELETE FROM isochrone_analysis.isochrone_nodes WHERE travel_mode = 'walk';
+INSERT INTO isochrone_analysis.isochrone_nodes (origin_id, travel_mode, node_id, node_distance)
+	SELECT origin.id, 'walk', (origin.catchment).id1, (origin.catchment).cost
+		FROM (
+			SELECT a.id, pgr_drivingDistance(
+				'SELECT sid AS id, source, target, length AS cost FROM wegen_walk',
+				a.id::integer, 700.0, false, false
+			) catchment
+			FROM (
+				SELECT * FROM isochrone_analysis.wegen_vertices_pgr v
+				WHERE EXISTS (SELECT 1 FROM wegen_walk WHERE source=v.id OR target=v.id)
+				AND EXISTS (SELECT 1 FROM isochrone_analysis.origin_stops
+				WHERE stop_mode IN ('trein','metro') AND (source_id=v.id OR target_id=v.id))
+			) a
+		) origin
+;
+-- walking for 400m
+INSERT INTO isochrone_analysis.isochrone_nodes (origin_id, travel_mode, node_id, node_distance)
+	SELECT origin.id, 'walk', (origin.catchment).id1, (origin.catchment).cost
+		FROM (
+			SELECT a.id, pgr_drivingDistance(
+				'SELECT sid AS id, source, target, length AS cost FROM wegen_walk',
+				a.id::integer, 300.0, false, false
+			) catchment
+			FROM (
+				SELECT * FROM isochrone_analysis.wegen_vertices_pgr v
+				WHERE EXISTS (SELECT 1 FROM wegen_walk WHERE source=v.id OR target=v.id)
+				AND EXISTS (SELECT 1 FROM isochrone_analysis.origin_stops
+				WHERE stop_mode IN ('tram','bus') AND (source_id=v.id OR target_id=v.id))
+			) a
+		) origin
+;
