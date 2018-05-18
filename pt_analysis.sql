@@ -6,7 +6,7 @@
 -- STEP 5: Calculate accessibility index
 -- STEP 6: Calculate PTAI and PTAL for the POIs
 
--- DROP SCHEMA ov_analysis CASCADE;
+DROP SCHEMA IF EXISTS ov_analysis CASCADE;
 CREATE SCHEMA ov_analysis;
 
 -- STEP 0: Get the POIs and corresponding network nodes

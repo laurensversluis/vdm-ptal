@@ -142,7 +142,7 @@ UPDATE networks.ov_stops stp SET bus = True
 	WHERE stp.stop_id = mod.stop_id
 ;
 UPDATE networks.ov_stops stp SET veerboot = True
-	FROM (SELECT * FROM ov_stop_modes WHERE route_type='veerboot') mod
+	FROM (SELECT * FROM ov_stop_modes WHERE route_type='ferry') mod
 	WHERE stp.stop_id = mod.stop_id
 ;
 UPDATE networks.ov_stops stp SET trein = True
@@ -150,3 +150,122 @@ UPDATE networks.ov_stops stp SET trein = True
 	WHERE stp.stop_id = mod.stop_id
 ;
 UPDATE networks.ov_stops SET trein = TRUE WHERE location_type = 1;
+
+-- Group stops
+
+-- this is a useful function to find the index of an element in an array
+CREATE OR REPLACE FUNCTION array_search(needle ANYELEMENT, haystack ANYARRAY)
+RETURNS INT AS $$
+    SELECT i
+      FROM generate_subscripts($2, 1) AS i
+     WHERE $2[i] = $1
+  ORDER BY i
+$$ LANGUAGE sql STABLE;
+
+DROP TABLE IF EXISTS stop_groups CASCADE;
+CREATE TEMP TABLE stop_groups (
+	sid serial NOT NULL PRIMARY KEY,
+	geom geometry(Point,28992),
+	group_id character varying,
+	stop_ids character varying[],
+	stop_name character varying,
+	stop_descr character varying,
+	location_type integer,
+	tram boolean,
+	metro boolean,
+	trein boolean,
+	bus boolean,
+	veerboot boolean
+);
+INSERT INTO stop_groups (geom, group_id, stop_ids, stop_name, stop_descr, location_type,
+	tram, metro, trein, bus, veerboot)
+	SELECT ST_Centroid(ST_Collect(geom)) , min(stop_id), array_agg(stop_id), stop_name, stop_descr,
+		1, tram, metro, trein, bus, veerboot
+	FROM networks.ov_stops WHERE parent_station IS NULL AND location_type = 0
+	GROUP BY stop_name, stop_descr, tram, metro, trein, bus, veerboot
+;
+-- remove single stop groups
+DELETE FROM stop_groups WHERE array_length(stop_ids,1) = 1;
+-- update info about groups on stops before inserting
+UPDATE networks.ov_stops stop SET
+	platform_code = stop_id,
+	parent_station = stop_groups.group_id
+	FROM stop_groups
+	WHERE stop.stop_id = ANY(stop_groups.stop_ids)
+;
+-- update id of stops in groups
+UPDATE networks.ov_stops stop SET
+	stop_id = stop_groups.group_id||'_'||array_search(stop.platform_code, stop_groups.stop_ids)::text
+	FROM stop_groups
+	WHERE stop.stop_id = ANY(stop_groups.stop_ids)
+;
+-- insert stop groups in stops table
+INSERT INTO networks.ov_stops (geom, stop_id, stop_name, stop_descr, location_type,
+	tram, metro, trein, bus, veerboot)
+	SELECT geom, group_id, stop_name, stop_descr, location_type, tram, metro, trein, bus, veerboot
+	FROM stop_groups
+;
+-- update stop_id of stop_times (Takes 30 minutes!!)
+UPDATE networks.ov_stop_times AS times SET
+	stop_id = stops.stop_id
+	FROM (SELECT * FROM networks.ov_stops WHERE parent_station IS NOT NULL AND trein IS NULL) AS stops
+	WHERE times.stop_id = stops.platform_code
+;
+-- add stop groups to stop_times
+UPDATE networks.ov_stop_times AS times SET
+	group_id = CASE
+		WHEN stops.parent_station IS NULL THEN times.stop_id
+		ELSE stops.parent_station
+		END
+	FROM networks.ov_stops AS stops
+	WHERE times.stop_id = stops.stop_id
+;
+
+-- links
+-- to get the topology of ov network, as pairs of stops that are connected by a given trip
+DROP TABLE IF EXISTS networks.ov_links CASCADE;
+CREATE TABLE networks.ov_links(
+	sid serial NOT NULL PRIMARY KEY,
+	geom geometry(Linestring, 28992),
+	trip_id character varying,
+	trip_mode character varying,
+	route_id character varying,
+	route_name character varying,
+	trip_sequence integer,
+	start_stop_id character varying,
+	end_stop_id character varying,
+	start_stop_time integer,
+	end_stop_time integer,
+	duration_in_secs integer
+);
+INSERT INTO networks.ov_links(geom, trip_id, trip_mode, route_id, route_name, trip_sequence,
+		start_stop_id, end_stop_id,
+		start_stop_time, end_stop_time, duration_in_secs)
+	SELECT ST_MAKELINE(geom,geom2), trip_id, trip_mode, route_id, route_name, trip_sequence,
+		start_stop_id, end_stop_id,
+		stop1_time, stop2_time, stop2_time-stop1_time
+	FROM (
+		SELECT
+			times.trip_id, trips.route_type trip_mode, trips.route_id route_id,
+			CASE
+				WHEN trips.route_long_name = '' THEN trips.route_short_name
+				ELSE trips.route_long_name
+			END AS route_name,
+			row_number() OVER w AS trip_sequence,
+			stops.geom, lead(stops.geom) OVER w AS geom2,
+			times.group_id AS start_stop_id,
+			lead(times.group_id) OVER w AS end_stop_id,
+			times.departure_in_secs AS stop1_time,
+			lead(times.arrival_in_secs) OVER w AS stop2_time
+		FROM (SELECT * FROM networks.ov_stop_times
+			WHERE (pickup_type IS NULL OR pickup_type < 2)
+			AND (drop_off_type IS NULL OR drop_off_type < 2)) times
+		JOIN (SELECT trip_id, route_id, route_short_name, route_long_name, route_type FROM networks.ov_trips) trips
+		USING (trip_id)
+		JOIN (SELECT stop_id, geom FROM networks.ov_stops WHERE location_type = 1 OR parent_station IS NULL) stops
+		ON (stops.stop_id = times.group_id)
+		WINDOW w AS (PARTITION BY times.trip_id ORDER BY times.stop_sequence)
+	  ) as stop_times
+	WHERE geom2 IS NOT NULL
+;
+CREATE INDEX ov_links_geom_idx ON networks.ov_links USING GIST(geom);
