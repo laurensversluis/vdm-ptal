@@ -4,7 +4,7 @@ CREATE SCHEMA isochrone_analysis;
 ALTER SCHEMA isochrone_analysis OWNER TO postgres;
 
 -- extract network for pedestrians and cyclists
-DROP TABLE isochrone_analysis.wegen CASCADE;
+DROP TABLE IF EXISTS isochrone_analysis.wegen CASCADE;
 CREATE TABLE isochrone_analysis.wegen AS
 	SELECT *
 	FROM networks.t10_wegen
@@ -13,11 +13,25 @@ CREATE TABLE isochrone_analysis.wegen AS
 ;
 
 -- prepare topology
-ALTER TABLE isochrone_analysis.wegen DROP COLUMN source, DROP COLUMN target;
+ALTER TABLE isochrone_analysis.wegen DROP COLUMN IF EXISTS source, DROP COLUMN IF EXISTS target;
 ALTER TABLE isochrone_analysis.wegen ADD COLUMN source integer, ADD COLUMN target integer;
 
 -- build the network topology (takes about an hour)
 SELECT pgr_createTopology('isochrone_analysis.wegen', 0.01, 'geom', 'sid');
+
+-- remove disconnected islands
+ALTER TABLE isochrone_analysis.wegen DROP COLUMN IF EXISTS disconnected;
+ALTER TABLE isochrone_analysis.wegen ADD COLUMN disconnected BOOLEAN DEFAULT FALSE ;
+
+SELECT pgr_analyzegraph('isochrone_analysis.wegen', 0.01, 'geom', 'sid', 'source', 'target');
+WITH islands AS (
+	SELECT a.sid
+  FROM isochrone_analysis.wegen a, isochrone_analysis.wegen_vertices_pgr b, isochrone_analysis.wegen_vertices_pgr c
+	WHERE a.source=b.id AND b.cnt=1 AND a.target=c.id AND c.cnt=1)
+UPDATE isochrone_analysis.wegen
+SET disconnected = True
+WHERE sid IN (SELECT sid FROM islands);
+
 
 -- indexing the wegen link and vertex tables
 CREATE INDEX wegen_geom_idx ON isochrone_analysis.wegen USING GIST (geom);

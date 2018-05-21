@@ -11,10 +11,15 @@ CREATE TABLE ov_analysis.valid_saps (
 	distance_to_sap double precision
 );
 -- prepare some indices
+DROP INDEX IF EXISTS isochrone_analysis.origin_stops_stop_idx;
 CREATE INDEX origin_stops_stop_idx ON isochrone_analysis.origin_stops (stop_id);
+DROP INDEX IF EXISTS isochrone_analysis.origin_stops_source_idx;
 CREATE INDEX origin_stops_source_idx ON isochrone_analysis.origin_stops (source_id);
+DROP INDEX IF EXISTS isochrone_analysis.origin_stops_target_idx;
 CREATE INDEX origin_stops_target_idx ON isochrone_analysis.origin_stops (target_id);
+DROP INDEX IF EXISTS isochrone_analysis.isochrone_nodes_origin_idx;
 CREATE INDEX isochrone_nodes_origin_idx ON isochrone_analysis.isochrone_nodes (origin_id);
+DROP INDEX IF EXISTS isochrone_analysis.isochrone_nodes_node_idx;
 CREATE INDEX isochrone_nodes_node_idx ON isochrone_analysis.isochrone_nodes (node_id);
 
 -- identify nodes within 3000m fiets of train stations
@@ -68,8 +73,7 @@ INSERT INTO ov_analysis.valid_saps (poi_id, sap_id, transport_mode, distance_to_
 	GROUP BY cell_id, stop_id, stop_mode
 ;
 --
--- identify nodes within 800m walk of metro stations
-DROP TABLE IF EXISTS sap_isochrone_nodes CASCADE;
+-- identify nodes within 800m walk of metro stationsDROP TABLE IF EXISTS sap_isochrone_nodes CASCADE;
 CREATE TEMP TABLE sap_isochrone_nodes AS
 	SELECT node.*
 	FROM (
@@ -118,6 +122,7 @@ INSERT INTO ov_analysis.valid_saps (poi_id, sap_id, transport_mode, distance_to_
 	FROM saps_within_poi_nodes
 	GROUP BY cell_id, stop_id, stop_mode
 ;
+
 
 -- identify nodes within 400m walk of tram and bus stops
 DROP TABLE IF EXISTS sap_isochrone_nodes CASCADE;
@@ -170,4 +175,5 @@ INSERT INTO ov_analysis.valid_saps (poi_id, sap_id, transport_mode, distance_to_
 	GROUP BY cell_id, stop_id, stop_mode
 ;
 -- add indices for faster querying
+DROP INDEX IF EXISTS ov_analysis.valid_saps_idx;
 CREATE INDEX IF NOT EXISTS valid_saps_idx ON ov_analysis.valid_saps (sap_id);

@@ -2,7 +2,7 @@
 DROP SCHEMA ov_analysis CASCADE;
 CREATE SCHEMA ov_analysis;
 
-DROP TABLE IF EXISTS ov_analysis.ptal_poi2 CASCADE;
+DROP TABLE IF EXISTS ov_analysis.ptal_poi CASCADE;
 CREATE TABLE ov_analysis.ptal_poi2 (
 	sid serial NOT NULL PRIMARY KEY,
 	geom geometry(Point, 28992),
@@ -13,13 +13,13 @@ CREATE TABLE ov_analysis.ptal_poi2 (
 	source_id integer,
 	target_id integer
 );
-INSERT INTO ov_analysis.ptal_poi2 (cell_id, geom, weg_sid, weg_length, weg_point_location, source_id, target_id)
+INSERT INTO ov_analysis.ptal_poi (cell_id, geom, weg_sid, weg_length, weg_point_location, source_id, target_id)
 	SELECT DISTINCT ON (grid.c28992r500) grid.c28992r500, ST_ClosestPoint(weg.geom, grid.geom),
 		weg.sid, weg.length, ST_LineLocatePoint(weg.geom, grid.geom), weg.source, weg.target
 	FROM (SELECT ST_Centroid(geom) geom, c28992r500
 		FROM sources.cbs_vierkant500m_2017
 	) AS grid, isochrone_analysis.wegen weg
-	WHERE ST_DWithin(grid.geom,weg.geom,500)
+	WHERE ST_DWithin(grid.geom,weg.geom,500) AND weg.disconnected = FALSE
 	ORDER BY grid.c28992r500, grid.geom <-> weg.geom
 ;
 -- remove POIs that are not reachable from any OV stop: PTAL and PTAI is 0 in those cases
