@@ -23,6 +23,7 @@ SELECT pgr_createTopology('isochrone_analysis.wegen', 0.01, 'geom', 'sid');
 ALTER TABLE isochrone_analysis.wegen DROP COLUMN IF EXISTS disconnected;
 ALTER TABLE isochrone_analysis.wegen ADD COLUMN disconnected BOOLEAN DEFAULT FALSE ;
 
+-- Isolated segments
 SELECT pgr_analyzegraph('isochrone_analysis.wegen', 0.01, 'geom', 'sid', 'source', 'target');
 WITH islands AS (
 	SELECT a.sid
@@ -32,6 +33,33 @@ UPDATE isochrone_analysis.wegen
 SET disconnected = True
 WHERE sid IN (SELECT sid FROM islands);
 
+-- Isolated islands (based on reliable segment 796806 and 1000km radius)
+WITH
+	centroid AS (SELECT st_setsrid(st_centroid(st_extent(the_geom)), 28992) AS geom FROM isochrone_analysis.wegen_vertices_pgr),
+	weg_origin AS (
+		SELECT DISTINCT wegen.source AS id, ST_Distance(wegen.geom, centroid.geom) AS distance
+		FROM (
+		  SELECT wegen.source, st_setsrid(wegen.geom, 28992) AS geom
+			FROM isochrone_analysis.wegen AS wegen, centroid
+		  WHERE st_dwithin(centroid.geom, st_setsrid(wegen.geom, 28992), 200)) AS wegen,
+			centroid
+		ORDER BY ST_Distance(wegen.geom, centroid.geom) ASC
+		LIMIT 1),
+	connected_vertices AS (
+		SELECT id1 AS id
+		FROM pgr_drivingDistance(
+			'SELECT  sid AS id, source, target, length AS cost FROM isochrone_analysis.wegen',
+			(SELECT id FROM weg_origin), 1000000, false, false)),
+	disconnected_vertices AS (
+		SELECT id FROM isochrone_analysis.wegen_vertices_pgr AS a LEFT OUTER JOIN connected_vertices AS b USING (id) WHERE b.id IS NULL),
+	disconnected_roads AS (
+		SELECT DISTINCT a.sid
+		FROM isochrone_analysis.wegen AS a, disconnected_vertices AS b
+		WHERE a.source=b.id OR a.target = b.id)
+UPDATE isochrone_analysis.wegen AS w
+SET disconnected = True
+FROM disconnected_roads AS d
+WHERE w.sid = d.sid;
 
 -- indexing the wegen link and vertex tables
 CREATE INDEX wegen_geom_idx ON isochrone_analysis.wegen USING GIST (geom);

@@ -3,7 +3,7 @@ DROP SCHEMA ov_analysis CASCADE;
 CREATE SCHEMA ov_analysis;
 
 DROP TABLE IF EXISTS ov_analysis.ptal_poi CASCADE;
-CREATE TABLE ov_analysis.ptal_poi2 (
+CREATE TABLE ov_analysis.ptal_poi (
 	sid serial NOT NULL PRIMARY KEY,
 	geom geometry(Point, 28992),
 	cell_id character varying,
