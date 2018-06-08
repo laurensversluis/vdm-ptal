@@ -34,6 +34,7 @@ CREATE TEMP TABLE sap_isochrone_nodes AS
 	OR node.origin_id IN (SELECT source_id FROM isochrone_analysis.origin_stops WHERE stop_mode = 'trein'))
 	AND node.node_distance <= 3000
 ;
+
 -- identify pois with saps within 3000m (TAKES 48 minutes!!!)
 DROP TABLE IF EXISTS saps_within_poi_nodes CASCADE;
 CREATE TEMP TABLE saps_within_poi_nodes AS
@@ -65,6 +66,7 @@ CREATE TEMP TABLE saps_within_poi_nodes AS
 		(poi.weg_length*(1-poi.weg_point_location))) <= 3000
 	)
 ;
+
 -- get minimum distance from poi to sap
 DELETE FROM ov_analysis.valid_saps WHERE transport_mode = 'trein';
 INSERT INTO ov_analysis.valid_saps (poi_id, sap_id, transport_mode, distance_to_sap)
@@ -72,7 +74,7 @@ INSERT INTO ov_analysis.valid_saps (poi_id, sap_id, transport_mode, distance_to_
 	FROM saps_within_poi_nodes
 	GROUP BY cell_id, stop_id, stop_mode
 ;
---
+
 -- identify nodes within 800m walk of metro stationsDROP TABLE IF EXISTS sap_isochrone_nodes CASCADE;
 CREATE TEMP TABLE sap_isochrone_nodes AS
 	SELECT node.*
