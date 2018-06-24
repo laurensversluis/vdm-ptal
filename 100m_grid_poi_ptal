@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------------------------------------Create POI
 -- Get the POIs and corresponding network nodes
-DROP SCHEMA ov_analysis_addresses CASCADE;
-CREATE SCHEMA ov_analysis_addresses ;
+DROP SCHEMA IF EXISTS ov_analysis_100m_grid CASCADE;
+CREATE SCHEMA ov_analysis_100m_grid ;
 
 DROP TABLE IF EXISTS ov_analysis_100m_grid.ptal_poi CASCADE;
 CREATE TABLE ov_analysis_100m_grid.ptal_poi (
@@ -399,11 +399,11 @@ DROP TABLE IF EXISTS ov_analysis_100m_grid.ptal_poi_grid;
 CREATE TABLE ov_analysis_100m_grid.ptal_poi_grid AS (
   SELECT
     ROW_NUMBER() OVER () AS id,
-    grid.c28992r500 AS cbs_cell_id,
+    grid.c28992r100 AS cbs_cell_id,
     CASE WHEN poi.ptai IS NULL THEN 0 ELSE poi.ptai END AS ptai,
     CASE WHEN poi.ptal IS NULL THEN '0' ELSE poi.ptal END AS ptal,
     grid.geom
-  FROM sources.cbs_vierkant500m_2017 AS grid LEFT JOIN ov_analysis_100m_grid.ptal_poi AS poi ON grid.c28992r500 = poi.cell_id
+  FROM sources.cbs_vierkant100m_2017_full_noord_brabant AS grid LEFT JOIN ov_analysis_100m_grid.ptal_poi AS poi ON grid.c28992r100 = poi.cell_id
 );
 
 ALTER TABLE ov_analysis_100m_grid.ptal_poi_grid

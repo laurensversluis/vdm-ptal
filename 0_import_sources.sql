@@ -9,7 +9,7 @@ ALTER SCHEMA sources OWNER TO postgres;
 -- CBS Vierkant 100m 2010
 -- 9292.nl GTFS
 
--- 'https://geodata.nationaalgeoregister.nl/inspireadressen/wfs?' version='auto' table=""
+-- 'https://geodata.nationaalgeoregister.nl/inspireadressen/wfs?sql="SELECT * FROM inspireadressen WHERE woonplaats = 'Utrecht'"
 -- sql=SELECT * FROM inspireadressen WHERE woonplaats = 'Utrecht'
 -- 'https://geodata.nationaalgeoregister.nl/bestuurlijkegrenzen/wfs?' version='auto' table=""
 -- sql=SELECT * FROM provincies WHERE provincies.provincienaam = 'Noord-Brabant'

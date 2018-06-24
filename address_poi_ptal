@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------------------------------------Create POI
 -- Get the POIs and corresponding network nodes
-DROP SCHEMA ov_analysis_addresses CASCADE;
+DROP SCHEMA IF EXISTS ov_analysis_addresses CASCADE;
 CREATE SCHEMA ov_analysis_addresses ;
 
 DROP TABLE IF EXISTS ov_analysis_addresses.ptal_poi CASCADE;
@@ -393,20 +393,28 @@ UPDATE ov_analysis_addresses.ptal_poi SET ptal = CASE
 	END
 	WHERE ptai IS NOT NULL
 ;
+-- Update geom to original address geom
+UPDATE ov_analysis_addresses.ptal_poi AS a
+	SET geom = b.geom
+		FROM sources.inspireadressen_utrecht AS b
+WHERE a.cell_id = b.id::text;
 
-------------------------------------------------------------------------------------------------------Grid Visualisation
-DROP TABLE IF EXISTS ov_analysis_addresses.ptal_poi_grid;
-CREATE TABLE ov_analysis_addresses.ptal_poi_grid AS (
-  SELECT
-    ROW_NUMBER() OVER () AS id,
-    grid.c28992r500 AS cbs_cell_id,
-    CASE WHEN poi.ptai IS NULL THEN 0 ELSE poi.ptai END AS ptai,
-    CASE WHEN poi.ptal IS NULL THEN '0' ELSE poi.ptal END AS ptal,
-    grid.geom
-  FROM sources.cbs_vierkant500m_2017 AS grid LEFT JOIN ov_analysis_addresses.ptal_poi AS poi ON grid.c28992r500 = poi.cell_id
+CREATE INDEX ptal_poi_geom_idx ON ov_analysis_addresses.ptal_poi USING GIST (geom);
+
+------------------------------------------------------------------------------------------------------Grid VisualisationDROP TABLE IF EXISTS ov_analysis_addresses.ptal_poi_panden CASCADE;
+DROP TABLE IF EXISTS ov_analysis_addresses.ptal_poi_panden CASCADE;
+CREATE TABLE ov_analysis_addresses.ptal_poi_panden AS (
+	SELECT DISTINCT ON (buildings.building_id)
+	row_number() over () AS id,
+    buildings.building_id,
+    CASE WHEN a.ptai IS NULL THEN 0 ELSE a.ptai END AS ptai,
+    CASE WHEN a.ptal IS NULL THEN '0' ELSE a.ptal END AS ptal,
+    st_force2d(buildings.geom) AS geom
+  	FROM sources.bag_buildings_utrecht AS buildings JOIN ov_analysis_addresses.ptal_poi AS a ON st_contains(buildings.geom, a.geom)
 );
 
-ALTER TABLE ov_analysis_addresses.ptal_poi_grid
+
+ALTER TABLE ov_analysis_addresses.ptal_poi_panden
     ADD PRIMARY KEY (id);
 
-CREATE INDEX ptal_poi_grid_geom_idx ON ov_analysis_addresses.ptal_poi_grid USING GIST (geom);
+CREATE INDEX ptal_poi_panden_geom_idx ON ov_analysis_addresses.ptal_poi_panden USING GIST (geom);
