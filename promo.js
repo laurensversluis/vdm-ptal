@@ -2,6 +2,7 @@ mapboxgl.accessToken = 'pk.eyJ1IjoibGF1cmVuc3ZlcnNsdWlzIiwiYSI6ImNqaTFwOWVuMTB4a
 
 var map = new mapboxgl.Map({
     container: 'map',
+//    style: 'mapbox://styles/mapbox/streets-v9',
     style: 'mapbox://styles/laurensversluis/cjiw2nfgt97zz2sq8ennhpm7h',
     center: [5.001128, 52.008653],
     zoom: 10,
@@ -11,8 +12,7 @@ var map = new mapboxgl.Map({
 var nav = new mapboxgl.NavigationControl();
 map.addControl(nav, 'top-left');
 
-// Adding logo
-// var logo = doc
+
 
 
 // Adding layers and layer toggle
@@ -56,7 +56,10 @@ map.on('load', function() {
     menu.appendChild(link);
     }
 
-    //Adding logo
+    // Adding logo
+    var mapControlsContainer = document.getElementsByClassName("mapboxgl-control-container")[0];
+    var logo = document.getElementById("logo_container");
+    mapControlsContainer.appendChild(logo);
 
 
 });

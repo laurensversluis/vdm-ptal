@@ -15,7 +15,7 @@ body { margin:0; padding:0; }
   border:1px solid rgba(0,0,0,0.4);
   }
   .menu a {
-    font-size:13px;
+    font-size:14px;
     color: #787878;
     display:block;
     margin:0;padding:0;
@@ -44,5 +44,16 @@ body { margin:0; padding:0; }
         }
 
 /*logo*/
-
+#logo_container {
+    height: 50px;
+    right: 10px;
+    bottom: 30px;
+    position: absolute;
+}
+#logo1 {
+    height: 100%;
+}
+#logo2 {
+    height: 100%;
+}
 /*legend*/
