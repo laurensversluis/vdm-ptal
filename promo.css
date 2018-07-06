@@ -1,12 +1,21 @@
 /*body*/
 body { margin:0; padding:0; }
 
+/*header*/
+#title {
+  z-index: 1;
+  font-size:24px;
+  position: absolute;
+  float: left;
+  top: 10px;
+  left: 60px;
+}
+
 /* map */
 #map { position:absolute; top:0; bottom:0; width:100%; }
 
 /*sidebar*/
 #side_container {
-  background-color:#2E4272;
   width: 150px;
   height: 100%;
   padding: 10px;
@@ -14,37 +23,36 @@ body { margin:0; padding:0; }
 }
 
 /* Menu */
-.menu {
+#menu {
   background:#fff;
-  position:absolute;
-  top:10px;right:10px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.20);
+  position:relative;
   z-index:1;
-  border-radius:2px;
+  border-radius:4px;
   width:150px;
   border:1px solid rgba(0,0,0,0.4);
   }
-  .menu a {
+  #menu a {
     font-size:14px;
     color: #7a7a7a;
     display:block;
-    margin:0;
     padding:10px;
     text-decoration:none;
-    border-bottom:1px solid rgba(0,0,0,0.25);
+    border-bottom:1px solid rgba(120, 120, 120, 0.25);
     text-align:center;
     }
-    .menu a:first-child {
-      border-radius:2px 2px 0 0;
+    #menu a:first-child {
+      border-radius:4px 4px 0 0;
       }
-    .menu a:last-child {
+    #menu a:last-child {
       border:none;
-      border-radius:0 0 2px 2px;
+      border-radius:0 0 4px 4px;
       }
-    .menu a:hover {
+    #menu a:hover {
       background: #d3d1d3;
       color:#404040;
       }
-    .menu a.active {
+    #menu a.active {
       background: #e3e3e3;
       color: #7a7a7a;
       }
@@ -55,15 +63,24 @@ body { margin:0; padding:0; }
 /*legend*/
 #legend {
   background:#fff;
-  display:block;
-  /*top:100px;*/
-  /*right:10px;*/
+  box-shadow: 0 1px 2px rgba(0,0,0,0.20);
+  position:relative;
   z-index:1;
-  border-radius:2px;
+  border-radius:4px;
   width:150px;
-  height: 300px;
   border:1px solid rgba(0,0,0,0.4);
+  padding: 10px;
+  font-size:12px;
+  display:block;
 }
+
+  #legend .legend-key {
+      display:inline-block;
+      border-radius:4px;
+      width: 10px;
+      height: 10px;
+      margin-right: 5px;
+  }
 
 /*logo*/
 #logo_container {
