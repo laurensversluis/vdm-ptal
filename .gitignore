@@ -1,3 +1,9 @@
 .idea
 .cache
 cache/
+.db
+SS/
+.SS
+.csv
+*.db
+*.csv

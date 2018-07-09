@@ -35,6 +35,16 @@ var legend_elements = {
             '6a excellent',
             '6b most excellent'],
         colors: ['#1e038c', '#1d59d3', '#00dada', '#96ec62', '#fbeb00', '#fdca30', '#ff3300', '#bd0900']
+    },
+    'PT Network': {
+        ranges: [
+            'train',
+            'metro',
+            'tram',
+            'bus',
+            'ferry'
+        ],
+        colors: ['#ea2a2a', '#f07c0f', '#c7f63c', '#401ff9', '#eb37d3']
     }
 };
 
@@ -50,7 +60,6 @@ map.on('load', function() {
         // Generate toggle menu
         var link = document.createElement('a') ;
         link.href = '#';
-        // link.className = 'active';
         link.textContent = layer_ref;
         link.source = layer_source;
 
@@ -69,16 +78,36 @@ map.on('load', function() {
                 map.setLayoutProperty(layer_source, 'visibility', 'visible');
             }
         };
+
+        // Update toggle menu to initial state
+        var visibility = map.getLayoutProperty(layer_source, 'visibility');
+        if (visibility === 'visible') {
+            link.className = 'active';
+        } else {
+            link.className = '';
+        }
+
+
     var menu = document.getElementById('menu');
     menu.appendChild(link);
     }
 
     // Adding legend
-    for (i = 0; i < Object.keys(legend_elements).length; i++) {
-        var layer = Object.keys(legend_elements)[i];
+    for (l = 0; l < Object.keys(legend_elements).length; l++) {
+
+        // Read layer symbology
+        var layer = Object.keys(legend_elements)[l];
         var layer_info = legend_elements[layer];
         var ranges = layer_info['ranges'];
         var colors = layer_info['colors'];
+
+        // Create legend container for each layer
+        var container = document.createElement('div');
+        container.className = 'legend-container';
+        var title = document.createElement('span');
+        title.innerHTML = layer;
+        title.className = 'legend-title';
+        container.appendChild(title);
 
         for (i = 0; i < ranges.length; i++) {
             var range = ranges[i];
@@ -97,8 +126,9 @@ map.on('load', function() {
             item.appendChild(key);
             item.appendChild(value);
 
-            legend.appendChild(item);
+            container.appendChild(item);
         }
+        legend.appendChild(container);
     }
 
     // Adding logo
